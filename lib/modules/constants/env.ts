@@ -18,6 +18,7 @@ interface EnvConfig {
   SUPPORT_SSL: boolean;
 
   FRONTEND_URL: string
+  POOL_MODE: string
 }
 
 function requireEnv(name: string): string {
@@ -45,6 +46,7 @@ const env: EnvConfig = {
   DB_USER: requireEnv("DB_USER"),
   DB_PASSWORD: requireEnv("DB_PASSWORD"),
   SUPPORT_SSL: process.env.SUPPORT_SSL === "true",
+  POOL_MODE: requireEnv("POOL_MODE"),
 
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
 };

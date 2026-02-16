@@ -10,6 +10,7 @@ const pool = new Pool({
   ssl: env.SUPPORT_SSL?{
     rejectUnauthorized: false,
   }:false,
+  
 });
 
 export default pool;

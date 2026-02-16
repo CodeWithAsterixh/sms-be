@@ -32,7 +32,7 @@ export async function getStudents(req: AuthRequest, res: Response) {
 
 export async function getStudent(req: AuthRequest, res: Response) {
   try {
-    const id = req.params.id;
+    const id = String(req.params.id);
     // Check if it's a number (ID) or string (UID)
     const queryId = /^\d+$/.test(id) ? Number(id) : id;
     
@@ -47,7 +47,7 @@ export async function getStudent(req: AuthRequest, res: Response) {
 
 export async function updateStudent(req: AuthRequest, res: Response) {
   try {
-    const id = req.params.id;
+    const id = String(req.params.id);
     // Check if it's a number (ID) or string (UID)
     const queryId = /^\d+$/.test(id) ? Number(id) : id;
 
