@@ -43,7 +43,7 @@ export async function login(req: Request, res: Response) {
     res.cookie("accessToken", accessToken, { ...COOKIE_OPTIONS, maxAge: 15 * 60 * 1000 }); // 15 mins
     res.cookie("refreshToken", refreshToken, { ...COOKIE_OPTIONS, maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7 days
 
-    return res.status(200).json({ success: true, data: { user: payload } });
+    return res.status(200).json({ success: true, data: { user: payload, accessToken } });
   } catch (err: any) {
     console.error(err);
     if (err.statusCode) throw err;
