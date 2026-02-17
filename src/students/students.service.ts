@@ -163,6 +163,14 @@ export async function getClassHistory(studentId: number) {
   return result.rows;
 }
 
+export async function updateProfileImage(id: number, photoUrl: string): Promise<STUDENT | null> {
+  const result = await pool.query(
+    `UPDATE students SET photo_url = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+    [id, photoUrl]
+  );
+  return result.rows[0] || null;
+}
+
 // Helper: Generate UID like STU-2026-0001
 function generateStudentUID(): string {
   const year = new Date().getFullYear();

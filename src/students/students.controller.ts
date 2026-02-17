@@ -69,3 +69,30 @@ export async function getClassHistory(req: AuthRequest, res: Response) {
     throwError(500, error.message || "Failed to fetch class history");
   }
 }
+
+export async function uploadProfileImage(req: AuthRequest, res: Response) {
+  try {
+    if (!req.file) {
+      return throwError(400, "No file uploaded");
+    }
+
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+        return throwError(400, "Invalid student ID");
+    }
+
+    // Construct the URL path (relative to server root)
+    const relativePath = `/uploads/students/${id}/${req.file.filename}`;
+    
+    const student = await studentService.updateProfileImage(id, relativePath);
+    
+    if (!student) {
+        return throwError(404, "Student not found");
+    }
+
+    res.status(200).json({ success: true, data: student });
+  } catch (error: any) {
+    if (error.statusCode) throw error;
+    throwError(500, error.message || "Failed to upload profile image");
+  }
+}

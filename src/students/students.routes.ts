@@ -4,11 +4,13 @@ import {
   getStudents, 
   getStudent, 
   updateStudent,
-  getClassHistory
+  getClassHistory,
+  uploadProfileImage
 } from "./students.controller";
 import { validate } from "../../lib/middlewares/validate";
 import { createStudentSchema } from "./students.validators";
 import { authenticate, authorizePermissions, authorizeRoles } from "../../lib/middlewares/auth";
+import { uploadProfileImageMiddleware } from "./upload.middleware";
 
 const router = Router();
 
@@ -49,6 +51,15 @@ router.get(
   authenticate,
   authorizeRoles("admin", "principal"),
   getClassHistory
+);
+
+// Profile Image Upload
+router.post(
+  "/:id/profile-image",
+  authenticate,
+  authorizePermissions("manage_students"),
+  uploadProfileImageMiddleware.single("image"),
+  uploadProfileImage
 );
 
 export default router;

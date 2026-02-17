@@ -1,6 +1,7 @@
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import path from "path";
 
 import env from "../lib/modules/constants/env";
 import { startServer } from "../lib/modules/helpers/server-starter";
@@ -25,13 +26,14 @@ import cookieParser from "cookie-parser";
 const app: Application = express();
 
 // ---------------------- Core middleware ----------------------
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors({
   origin: env.FRONTEND_URL,
   credentials: true,
 }));
 app.use(cookieParser());
 app.use(express.json());
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // ---------------------- Auth Endpoints ----------------------
 app.use("/auth", authRoutes);
