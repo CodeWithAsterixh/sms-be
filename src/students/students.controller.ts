@@ -4,7 +4,7 @@ import { AuthRequest } from "../../types/auth";
 import { throwError } from "../../lib/middlewares/error-handler";
 import crypto from "crypto";
 import path from "path";
-import { supabase, STORAGE_BUCKET } from "../../lib/supabase";
+import { supabase, STORAGE_BUCKET } from "../lib/supabase";
 import { STUDENT } from ".";
 
 // Helper function to handle image upload logic
@@ -20,15 +20,10 @@ async function processImageUpload(student: STUDENT, file: Express.Multer.File, u
   }
 
   // 3. Construct filename
-  const studentName = `${student.first_name}_${student.last_name}`.toLowerCase().replace(/[^a-z0-9_]/g, "_");
-  const uploadedByUserId = userId || "unknown";
-  
-  const now = new Date();
-  const yyyymmdd = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const hhmmss = now.toTimeString().slice(0, 8).replace(/:/g, "");
-  
+  // Generate a random filename to avoid exposing student details
   const ext = path.extname(file.originalname);
-  const filename = `students/${student.id}/${studentName}_${uploadedByUserId}_${yyyymmdd}_${hhmmss}_${hash}${ext}`;
+  const randomName = crypto.randomBytes(16).toString('hex');
+  const filename = `students/${student.id}/${randomName}${ext}`;
 
   // 4. Upload to Supabase
   const { data: uploadData, error: uploadError } = await supabase.storage
@@ -43,21 +38,69 @@ async function processImageUpload(student: STUDENT, file: Express.Multer.File, u
     throwError(500, "Failed to upload image to storage");
   }
 
-  // 5. Get public URL
-  const { data: publicUrlData } = supabase.storage
-    .from(STORAGE_BUCKET)
-    .getPublicUrl(filename);
-    
-  const publicUrl = publicUrlData.publicUrl;
-
-  // 6. Update student record
-  const updatedStudent = await studentService.updateProfileImage(student.id, publicUrl, hash);
+  // 5. Update student record with storage path instead of public URL
+  // This allows us to serve the image through a proxy endpoint, avoiding CORS/ORB issues
+  const updatedStudent = await studentService.updateProfileImage(student.id, filename, hash);
   
   if (!updatedStudent) {
     throwError(500, "Failed to update student record after upload");
   }
 
   return updatedStudent!;
+}
+
+export async function getProfileImage(req: Request, res: Response) {
+  try {
+    const id = String(req.params.id);
+    const queryId = /^\d+$/.test(id) ? Number(id) : id;
+    
+    const student = await studentService.getStudentById(queryId);
+    if (!student || !student.photo_url) {
+      return res.status(404).send("Image not found");
+    }
+
+    // Check if it's a legacy public URL or full Supabase URL
+    // If it contains "supabase.co", we assume it's a full URL and try to extract the path
+    // or just redirect if we want to support legacy behavior (but legacy behavior causes ORB)
+    
+    let storagePath = student.photo_url;
+    if (student.photo_url.startsWith('http')) {
+      // Try to extract the relative path from the full URL
+      // Format: https://xxx.supabase.co/storage/v1/object/public/bucket-name/path/to/file
+      const urlParts = student.photo_url.split(`${STORAGE_BUCKET}/`);
+      if (urlParts.length > 1) {
+        storagePath = urlParts[1];
+      } else {
+         // If we can't extract the path, we have to redirect and hope for the best
+         // or we can try to download it via fetch and stream it (acting as a proxy for external URL)
+         return res.redirect(student.photo_url);
+      }
+    }
+
+    // Download from Supabase
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .download(storagePath);
+
+    if (error || !data) {
+      console.error("Supabase download error:", error);
+      return res.status(404).send("Image not found in storage");
+    }
+
+    // Set correct content type
+    const mimeType = data.type || 'image/jpeg';
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+
+    // Send the buffer
+    const arrayBuffer = await data.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    res.send(buffer);
+
+  } catch (error: any) {
+    console.error("Profile image proxy error:", error);
+    res.status(500).send("Failed to retrieve image");
+  }
 }
 
 export async function createStudent(req: AuthRequest, res: Response) {
@@ -147,13 +190,12 @@ export async function uploadProfileImage(req: AuthRequest, res: Response) {
       return throwError(400, "No file uploaded");
     }
 
-    const id = Number(req.params.id);
-    if (isNaN(id)) {
-        return throwError(400, "Invalid student ID");
-    }
+    const id = String(req.params.id);
+    // Check if it's a number (ID) or string (UID)
+    const queryId = /^\d+$/.test(id) ? Number(id) : id;
 
     // 1. Fetch student to get name and verify existence
-    const student = await studentService.getStudentById(id);
+    const student = await studentService.getStudentById(queryId);
     if (!student) {
         return throwError(404, "Student not found");
     }

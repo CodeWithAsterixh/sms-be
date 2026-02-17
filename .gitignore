@@ -5,7 +5,6 @@ node_modules/
 # Environment Variables & Secrets
 .env
 .env.*
-!.env.example
 *.pem
 *.key
 *.crt

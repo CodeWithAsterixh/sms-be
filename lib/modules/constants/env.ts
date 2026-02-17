@@ -21,7 +21,7 @@ interface EnvConfig {
   POOL_MODE: string
 
   SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
+  SUPABASE_SECRET: string;
 }
 
 function requireEnv(name: string): string {
@@ -54,7 +54,7 @@ const env: EnvConfig = {
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
 
   SUPABASE_URL: requireEnv("SUPABASE_URL"),
-  SUPABASE_SERVICE_ROLE_KEY: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
+  SUPABASE_SECRET: requireEnv("SUPABASE_SECRET"),
 };
 
 export default env;
