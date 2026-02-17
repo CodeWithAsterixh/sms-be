@@ -8,6 +8,7 @@ import { startServer } from "../lib/modules/helpers/server-starter";
 
 // ---------------------- Middleware imports ----------------------
 import { errorHandler } from "../lib/middlewares/error-handler";
+import { authenticate, authorizePermissions } from "../lib/middlewares/auth";
 
 // ---------------------- Route imports ------------------------
 import studentRoutes from "../src/students/students.routes";
@@ -20,6 +21,8 @@ import permissionRoutes from "../src/permissions/permissions.routes";
 import conductRoutes from "../src/conduct/conduct.routes";
 import financialRoutes from "../src/financial/financial.routes";
 import cookieParser from "cookie-parser";
+
+import { getProfileImage } from "../src/students/students.controller";
 // -------------------------------------------------------------
 
 // ---------------------- App initialization -------------------
@@ -37,6 +40,9 @@ app.use(express.json());
 
 // ---------------------- Auth Endpoints ----------------------
 app.use("/auth", authRoutes);
+
+// ---------------------- Image Proxy ------------------------
+app.get("/images/students/:id", authenticate, authorizePermissions("view_students"), getProfileImage);
 
 // ---------------------- Register API routes -----------------
 app.use("/students", studentRoutes);

@@ -6,6 +6,21 @@ import crypto from "crypto";
 import path from "path";
 import { supabase, STORAGE_BUCKET } from "../lib/supabase";
 import { STUDENT } from ".";
+import sharp from "sharp";
+
+// Simple in-memory cache
+const imageCache = new Map<string, { buffer: Buffer, timestamp: number }>();
+const CACHE_DURATION = 3600 * 1000; // 1 hour
+const MAX_CACHE_SIZE = 100; // Limit to 100 images
+
+function addToCache(key: string, buffer: Buffer) {
+  if (imageCache.size >= MAX_CACHE_SIZE) {
+    // Remove oldest item (Map preserves insertion order)
+    const firstKey = imageCache.keys().next().value;
+    if (firstKey) imageCache.delete(firstKey);
+  }
+  imageCache.set(key, { buffer, timestamp: Date.now() });
+}
 
 // Helper function to handle image upload logic
 async function processImageUpload(student: STUDENT, file: Express.Multer.File, userId: string | number): Promise<STUDENT> {
@@ -60,21 +75,26 @@ export async function getProfileImage(req: Request, res: Response) {
     }
 
     // Check if it's a legacy public URL or full Supabase URL
-    // If it contains "supabase.co", we assume it's a full URL and try to extract the path
-    // or just redirect if we want to support legacy behavior (but legacy behavior causes ORB)
-    
     let storagePath = student.photo_url;
     if (student.photo_url.startsWith('http')) {
-      // Try to extract the relative path from the full URL
-      // Format: https://xxx.supabase.co/storage/v1/object/public/bucket-name/path/to/file
       const urlParts = student.photo_url.split(`${STORAGE_BUCKET}/`);
       if (urlParts.length > 1) {
         storagePath = urlParts[1];
       } else {
-         // If we can't extract the path, we have to redirect and hope for the best
-         // or we can try to download it via fetch and stream it (acting as a proxy for external URL)
          return res.redirect(student.photo_url);
       }
+    }
+
+    // Cache key: studentId + path
+    const cacheKey = `img:${student.id}:${storagePath}`;
+    const cached = imageCache.get(cacheKey);
+
+    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
+        res.setHeader('Content-Type', 'image/webp');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.setHeader('ETag', `"${cacheKey}"`);
+        res.setHeader('Last-Modified', new Date(cached.timestamp).toUTCString());
+        return res.send(cached.buffer);
     }
 
     // Download from Supabase
@@ -87,15 +107,26 @@ export async function getProfileImage(req: Request, res: Response) {
       return res.status(404).send("Image not found in storage");
     }
 
-    // Set correct content type
-    const mimeType = data.type || 'image/jpeg';
-    res.setHeader('Content-Type', mimeType);
-    res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+    // Optimize with Sharp
+    const arrayBuffer = await data.arrayBuffer();
+    const originalBuffer = Buffer.from(arrayBuffer);
+
+    const optimizedBuffer = await sharp(originalBuffer)
+      .resize(256, 256, { fit: 'cover' })
+      .webp({ quality: 75 })
+      .toBuffer();
+
+    // Store in cache
+    addToCache(cacheKey, optimizedBuffer);
+
+    // Set headers
+    res.setHeader('Content-Type', 'image/webp');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('ETag', `"${cacheKey}"`);
+    res.setHeader('Last-Modified', new Date().toUTCString());
 
     // Send the buffer
-    const arrayBuffer = await data.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    res.send(buffer);
+    res.send(optimizedBuffer);
 
   } catch (error: any) {
     console.error("Profile image proxy error:", error);
