@@ -163,12 +163,20 @@ export async function getClassHistory(studentId: number) {
   return result.rows;
 }
 
-export async function updateProfileImage(id: number, photoUrl: string): Promise<STUDENT | null> {
+export async function updateProfileImage(id: number, photoUrl: string, hash?: string): Promise<STUDENT | null> {
   const result = await pool.query(
-    `UPDATE students SET photo_url = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
-    [id, photoUrl]
+    `UPDATE students SET photo_url = $2, profile_image_hash = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+    [id, photoUrl, hash || null]
   );
   return result.rows[0] || null;
+}
+
+export async function checkDuplicateImage(hash: string): Promise<boolean> {
+  const result = await pool.query(
+    `SELECT 1 FROM students WHERE profile_image_hash = $1 LIMIT 1`,
+    [hash]
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 // Helper: Generate UID like STU-2026-0001

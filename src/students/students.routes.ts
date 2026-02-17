@@ -19,6 +19,7 @@ router.post(
   "/",
   authenticate,
   authorizePermissions("manage_students"),
+  uploadProfileImageMiddleware.single("image"),
   validate(createStudentSchema),
   createStudent,
 );
